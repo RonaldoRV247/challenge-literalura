@@ -5,24 +5,38 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 
 public class ConsumoAPI {
 
     public String obtenerDatos(String url) {
-        HttpClient client = HttpClient.newHttpClient();
+        HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(30))
+                .header("User-Agent", "LiteraluraApp/1.0")
                 .build();
+
         HttpResponse<String> response = null;
         try {
-            response = client
-                    .send(request, HttpResponse.BodyHandlers.ofString());
+            System.out.println("Conectando a: " + url);
+            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            System.out.println("Respuesta HTTP: " + response.statusCode());
+
+            if (response.statusCode() == 200) {
+                return response.body();
+            } else {
+                throw new RuntimeException("Error HTTP: " + response.statusCode());
+            }
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            System.err.println("Error de conexión: " + e.getMessage());
+            throw new RuntimeException("No se pudo conectar a la API. Verifique su conexión a Internet.", e);
         } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+            System.err.println("Conexión interrumpida: " + e.getMessage());
+            throw new RuntimeException("La conexión fue interrumpida.", e);
         }
-        String json = response.body();
-        return json;
     }
 }
