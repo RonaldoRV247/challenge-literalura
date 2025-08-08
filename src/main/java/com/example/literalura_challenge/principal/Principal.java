@@ -36,6 +36,8 @@ public class Principal {
                     3- Listar autores registrados
                     4- Listar autores vivos en un determinado año
                     5- Listar libros por idioma
+                    6- Mostrar estadísticas de libros por idioma
+                    7- Top 10 libros más descargados
                     
                     0- Salir
                     *********************************
@@ -61,6 +63,12 @@ public class Principal {
                     case 5:
                         mostrarLibrosPorIdioma();
                         break;
+                    case 6:
+                        mostrarEstadisticasPorIdioma();
+                        break;
+                    case 7:
+                        mostrarTop10LibrosMasDescargados();
+                        break;
                     case 0:
                         System.out.println("Cerrando la aplicación...");
                         break;
@@ -77,17 +85,29 @@ public class Principal {
     private DatosLibro getDatosLibro() {
         System.out.println("Escribe el nombre del libro que deseas buscar:");
         var nombreLibro = teclado.nextLine();
-        var json = consumoApi.obtenerDatos(URL_BASE + "?search=" + nombreLibro.replace(" ", "%20"));
-        System.out.println("JSON recibido: " + json);
-        var datosBusqueda = conversor.obtenerDatos(json, DatosRespuesta.class);
-        Optional<DatosLibro> libroBuscado = datosBusqueda.resultados().stream()
-                .filter(l -> l.titulo().toUpperCase().contains(nombreLibro.toUpperCase()))
-                .findFirst();
-        if (libroBuscado.isPresent()) {
-            System.out.println("Libro encontrado");
-            return libroBuscado.get();
-        } else {
-            System.out.println("Libro no encontrado");
+
+        if (nombreLibro.trim().isEmpty()) {
+            System.out.println("Error: Debe ingresar un nombre de libro válido");
+            return null;
+        }
+
+        try {
+            var json = consumoApi.obtenerDatos(URL_BASE + "?search=" + nombreLibro.replace(" ", "%20"));
+            var datosBusqueda = conversor.obtenerDatos(json, DatosRespuesta.class);
+
+            Optional<DatosLibro> libroBuscado = datosBusqueda.resultados().stream()
+                    .filter(l -> l.titulo().toUpperCase().contains(nombreLibro.toUpperCase()))
+                    .findFirst();
+
+            if (libroBuscado.isPresent()) {
+                System.out.println("Libro encontrado en la API!");
+                return libroBuscado.get();
+            } else {
+                System.out.println("Libro no encontrado en la API");
+                return null;
+            }
+        } catch (Exception e) {
+            System.out.println("Error al consultar la API: " + e.getMessage());
             return null;
         }
     }
@@ -120,6 +140,7 @@ public class Principal {
         } else {
             System.out.println("\n--- LIBROS REGISTRADOS ---");
             libros.forEach(System.out::println);
+            System.out.println("Total de libros registrados: " + libros.size());
         }
     }
 
@@ -130,41 +151,107 @@ public class Principal {
         } else {
             System.out.println("\n--- AUTORES REGISTRADOS ---");
             autores.forEach(System.out::println);
+            System.out.println("Total de autores registrados: " + autores.size());
         }
     }
 
     private void mostrarAutoresVivosEnAno() {
         System.out.println("Ingrese el año que desea consultar:");
         try {
-            var ano = teclado.nextLine();
+            var anoStr = teclado.nextLine();
+            Integer ano = Integer.valueOf(anoStr);
+
+            if (ano < 0 || ano > 2024) {
+                System.out.println("Error: Ingrese un año válido (entre 1 y 2024)");
+                return;
+            }
+
             List<Autor> autoresVivos = autorRepository.findAutoresVivosEnAno(ano);
             if (autoresVivos.isEmpty()) {
-                System.out.println("No hay autores vivos en el año " + ano);
+                System.out.println("No hay autores vivos registrados en el año " + ano);
             } else {
                 System.out.println("\n--- AUTORES VIVOS EN " + ano + " ---");
                 autoresVivos.forEach(System.out::println);
+                System.out.println("Total de autores vivos en " + ano + ": " + autoresVivos.size());
             }
+        } catch (NumberFormatException e) {
+            System.out.println("Error: Ingrese un año válido (número entero)");
         } catch (Exception e) {
-            System.out.println("Error: Ingrese un año válido");
+            System.out.println("Error al consultar autores: " + e.getMessage());
         }
     }
 
     private void mostrarLibrosPorIdioma() {
-        var menuIdiomas = """
-                Ingrese el idioma para buscar los libros:
-                es - español
-                en - inglés
-                fr - francés
-                pt - portugués
-                """;
-        System.out.println(menuIdiomas);
-        var idioma = teclado.nextLine();
+        List<String> idiomasDisponibles = libroRepository.findDistinctIdiomas();
+
+        if (idiomasDisponibles.isEmpty()) {
+            System.out.println("No hay libros registrados en la base de datos.");
+            return;
+        }
+
+        System.out.println("Idiomas disponibles en la base de datos:");
+        idiomasDisponibles.forEach(idioma -> {
+            Long cantidad = libroRepository.countByIdioma(idioma);
+            System.out.println("- " + idioma + " (" + cantidad + " libros)");
+        });
+
+        System.out.println("\nIngrese el código del idioma que desea consultar:");
+        var idioma = teclado.nextLine().toLowerCase().trim();
+
+        if (idioma.isEmpty()) {
+            System.out.println("Error: Debe ingresar un código de idioma válido");
+            return;
+        }
+
         List<Libro> librosPorIdioma = libroRepository.findByIdioma(idioma);
         if (librosPorIdioma.isEmpty()) {
             System.out.println("No hay libros registrados en el idioma: " + idioma);
         } else {
             System.out.println("\n--- LIBROS EN " + idioma.toUpperCase() + " ---");
             librosPorIdioma.forEach(System.out::println);
+            System.out.println("Total de libros en " + idioma + ": " + librosPorIdioma.size());
+        }
+    }
+
+    private void mostrarEstadisticasPorIdioma() {
+        List<Object[]> estadisticas = libroRepository.obtenerEstadisticasPorIdioma();
+
+        if (estadisticas.isEmpty()) {
+            System.out.println("No hay libros registrados en la base de datos.");
+            return;
+        }
+
+        System.out.println("\n--- ESTADÍSTICAS DE LIBROS POR IDIOMA ---");
+        System.out.println("Idioma\t\tCantidad de Libros");
+        System.out.println("------------------------------------");
+
+        estadisticas.forEach(stat -> {
+            String idioma = (String) stat[0];
+            Long cantidad = (Long) stat[1];
+            System.out.printf("%-10s\t%d libros%n", idioma.toUpperCase(), cantidad);
+        });
+
+        // Mostrar total general
+        Long totalLibros = estadisticas.stream()
+            .mapToLong(stat -> (Long) stat[1])
+            .sum();
+        System.out.println("------------------------------------");
+        System.out.println("TOTAL: " + totalLibros + " libros");
+    }
+
+    private void mostrarTop10LibrosMasDescargados() {
+        List<Libro> topLibros = libroRepository.findTop10ByOrderByNumeroDeDescargasDesc();
+
+        if (topLibros.isEmpty()) {
+            System.out.println("No hay libros registrados en la base de datos.");
+            return;
+        }
+
+        System.out.println("\n--- TOP 10 LIBROS MÁS DESCARGADOS ---");
+        for (int i = 0; i < Math.min(10, topLibros.size()); i++) {
+            Libro libro = topLibros.get(i);
+            System.out.printf("%d. %s - %.0f descargas%n",
+                (i + 1), libro.getTitulo(), libro.getNumeroDeDescargas());
         }
     }
 }
