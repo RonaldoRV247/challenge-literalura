@@ -22,21 +22,18 @@ public class ConsumoAPI {
 
         HttpResponse<String> response = null;
         try {
-            System.out.println("Conectando a: " + url);
+            // Eliminar mensajes técnicos para usuarios comunes
             response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            System.out.println("Respuesta HTTP: " + response.statusCode());
 
             if (response.statusCode() == 200) {
                 return response.body();
             } else {
-                throw new RuntimeException("Error HTTP: " + response.statusCode());
+                throw new RuntimeException("Error en la conexion con el servidor de libros");
             }
         } catch (IOException e) {
-            System.err.println("Error de conexión: " + e.getMessage());
-            throw new RuntimeException("No se pudo conectar a la API. Verifique su conexión a Internet.", e);
+            throw new RuntimeException("No se pudo conectar al servidor de libros. Verifique su conexion a Internet.", e);
         } catch (InterruptedException e) {
-            System.err.println("Conexión interrumpida: " + e.getMessage());
-            throw new RuntimeException("La conexión fue interrumpida.", e);
+            throw new RuntimeException("La busqueda fue interrumpida.", e);
         }
     }
 }
